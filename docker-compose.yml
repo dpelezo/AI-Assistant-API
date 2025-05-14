@@ -1,0 +1,38 @@
+# docker-compose.yml
+version: '3.8'
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Core settings
+      - DEBUG=True
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - MODEL_NAME=claude-3-5-sonnet-20240620
+      - TEMPERATURE=0
+      - EXA_API_KEY=${EXA_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-supersecretkey}
+      
+      # LangSmith observability settings
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-ai-assistant-api}
+      
+      # Research settings
+      - DEFAULT_RESEARCH_ITERATIONS=${DEFAULT_RESEARCH_ITERATIONS:-3}
+      - MAX_RESEARCH_ITERATIONS=${MAX_RESEARCH_ITERATIONS:-5}
+      
+      # Optional: Configure background tracing behavior
+      # - LANGCHAIN_CALLBACKS_BACKGROUND=true
+    volumes:
+      - ./app:/app/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
