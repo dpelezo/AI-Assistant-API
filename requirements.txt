@@ -20,7 +20,7 @@ langsmith>=0.1.39
 loguru==0.7.2
 
 # Performance improvements
-orjson==3.9.13
+#orjson==3.9.13
 
 # Optional: OTel support
 # opentelemetry-api==1.22.0
