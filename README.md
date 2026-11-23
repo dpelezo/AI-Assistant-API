@@ -23,8 +23,8 @@ flowchart LR
 
 1. `POST /api/query` stores the user's message, returns a `thread_id` at once, and runs the agent in a background task.
 2. The agent loop alternates between Claude and the `retrieve_web_content` tool (Exa, top 6 results with highlights) until Claude answers without a tool call.
-3. The client polls `GET /api/thread/{thread_id}` for the AI reply.
-4. Deep research (`POST /api/research/query`) runs several search-and-summarize iterations (default 3, maximum 5) and is polled through `/status` and `/result`.
+3. The client polls `GET /api/thread/{thread_id}` for the AI reply. If the model call fails, the reply is a short notice marked `"is_error": true`; the full error goes to the logs only.
+4. Deep research (`POST /api/research/query`) runs several search-and-summarize iterations (default 3, maximum 5) and is polled through `/status` and `/result`. If Claude cannot write the report, the result lists the sources found, with short excerpts.
 
 ## Testing and quality checks
 
@@ -37,9 +37,11 @@ The tests never call a live model or LangSmith. They cover:
 - Conversation history carried into the next message of the same thread
 - `404` for an unknown thread
 - Every debug route returning `404` unless `DEBUG=true`
+- Friendly error messages: no API credit, a bad key or a rate limit shows a short notice, never the provider's error text
+- Search results formatted as clean text, and the deep research fallback report when the model is unavailable
 - The LangSmith run helpers, using a fake client
 
-Not covered yet: the deep research flow and the Exa tool.
+Not covered yet: the live Exa API and report quality.
 
 ## Known limitations
 
