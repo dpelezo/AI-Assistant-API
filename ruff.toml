@@ -1,0 +1,4 @@
+# Ruff settings for this repo. Pin the Ruff version too (see CI and README),
+# because Ruff's default rule set changes between releases.
+target-version = "py311"
+extend-exclude = [".venv"]

@@ -2,6 +2,7 @@
 """Logging utilities."""
 import logging
 from logging.config import dictConfig
+
 from app.core.config import settings
 
 

@@ -1,13 +1,14 @@
 # app/main.py
-import uvicorn
 import logging
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.dependencies import active_threads
 from app.api.router import router
 from app.core.config import settings
-from app.api.dependencies import active_threads
 from app.core.langsmith_setup import setup_langsmith, wrap_functions_with_langsmith
 
 # Configure logging

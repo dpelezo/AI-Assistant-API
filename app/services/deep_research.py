@@ -1,13 +1,13 @@
 # app/services/deep_research.py
-import asyncio
 import logging
-from typing import List, Dict, Any, Optional
 import re
+from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from app.services.web_search import retrieve_web_content
-from app.services.ai import get_model
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from app.core.config import settings
+from app.services.ai import get_model
+from app.services.web_search import retrieve_web_content
 
 # Create logger
 logger = logging.getLogger(__name__)
@@ -40,12 +40,12 @@ async def extract_text_from_search_result(result: Any) -> str:
         # Fall back to string representation
         return str(result)
         
-    except Exception as e:
-        logger.error(f"Error extracting text from search result: {str(e)}")
+    except Exception:
+        logger.exception("Error extracting text from search result")
         return str(result)# app/services/deep_research.py
 
 
-async def generate_search_queries(query: str) -> List[str]:
+async def generate_search_queries(query: str) -> list[str]:
     """
     Generate up to four precise search queries based on the user's query.
     """
@@ -79,8 +79,8 @@ async def generate_search_queries(query: str) -> List[str]:
                     if isinstance(search_queries, list):
                         logger.info(f"Generated {len(search_queries)} search queries")
                         return search_queries
-                except Exception as e:
-                    logger.error(f"Error parsing matched list: {str(e)}")
+                except Exception:
+                    logger.exception("Error parsing matched list")
             
             # Try to extract anything that looks like search terms
             # If regex fails, try a more lenient approach - look for quotes
@@ -96,11 +96,11 @@ async def generate_search_queries(query: str) -> List[str]:
         # Fallback if parsing fails
         logger.info("Using original query as fallback")
         return [query]
-    except Exception as e:
-        logger.error(f"Error generating search queries: {str(e)}")
+    except Exception:
+        logger.exception("Error generating search queries")
         return [query]
 
-async def parse_web_content_results(search_results: Any) -> Dict[str, List[str]]:
+async def parse_web_content_results(search_results: Any) -> dict[str, list[str]]:
     """
     Parse the search results into a structured format with urls and highlights.
     This function is specifically designed to handle the format returned by retrieve_web_content.
@@ -167,8 +167,8 @@ async def parse_web_content_results(search_results: Any) -> Dict[str, List[str]]
         logger.info(f"Parsed {len(result['urls'])} URLs and {len(result['highlights'])} highlights")
         return result
         
-    except Exception as e:
-        logger.error(f"Error parsing web content results: {str(e)}")
+    except Exception:
+        logger.exception("Error parsing web content results")
         return result
 
 async def is_page_useful(query: str, page_content: Any) -> bool:
@@ -201,8 +201,8 @@ async def is_page_useful(query: str, page_content: Any) -> bool:
             answer = response.content.strip().lower()
             return "yes" in answer
         
-    except Exception as e:
-        logger.error(f"Error evaluating page usefulness: {str(e)}")
+    except Exception:
+        logger.exception("Error evaluating page usefulness")
     
     return False
 
@@ -250,14 +250,14 @@ async def extract_relevant_context(query: str, search_query: str, page_content: 
             # Return original content as fallback
             return text_content
         
-    except Exception as e:
-        logger.error(f"Error extracting relevant context: {str(e)}")
+    except Exception:
+        logger.exception("Error extracting relevant context")
         # Return original content in case of error
         if isinstance(page_content, str):
             return page_content
         return ""
 
-async def get_new_search_queries(query: str, previous_queries: List[str], all_contexts: List[str]) -> List[str]:
+async def get_new_search_queries(query: str, previous_queries: list[str], all_contexts: list[str]) -> list[str]:
     """
     Determine if additional search queries are needed based on gathered information.
     """
@@ -299,8 +299,8 @@ async def get_new_search_queries(query: str, previous_queries: List[str], all_co
                     if isinstance(new_queries, list):
                         logger.info(f"Generated {len(new_queries)} new search queries")
                         return new_queries
-                except Exception as e:
-                    logger.error(f"Error parsing matched list for new queries: {str(e)}")
+                except Exception:
+                    logger.exception("Error parsing matched list for new queries")
             
             # Look for quotes as a fallback
             query_pattern = r'[\'"]([^\'"]+)[\'"]'
@@ -313,11 +313,11 @@ async def get_new_search_queries(query: str, previous_queries: List[str], all_co
             logger.warning(f"Failed to parse new search queries from: {content}")
         
         return []
-    except Exception as e:
-        logger.error(f"Error getting new search queries: {str(e)}")
+    except Exception:
+        logger.exception("Error getting new search queries")
         return []
 
-async def generate_final_report(query: str, all_contexts: List[Any]) -> str:
+async def generate_final_report(query: str, all_contexts: list[Any]) -> str:
     """
     Generate the final comprehensive report using all gathered contexts.
     """
@@ -344,15 +344,15 @@ async def generate_final_report(query: str, all_contexts: List[Any]) -> str:
                         try:
                             item_str = str(item)
                             list_content.append(item_str)
-                        except:
-                            pass
+                        except Exception:
+                            logger.debug("Skipping list item that could not be converted to text", exc_info=True)
                 formatted_contexts.append(f"Context {i+1}:\n{' '.join(list_content)}")
             else:
                 # Try to convert to string
                 context_str = str(context)
                 formatted_contexts.append(f"Context {i+1}:\n{context_str}")
-        except Exception as e:
-            logger.error(f"Error formatting context {i+1}: {str(e)}")
+        except Exception:
+            logger.exception(f"Error formatting context {i+1}")
             # Skip this context if it can't be formatted
     
     if not formatted_contexts:
@@ -404,8 +404,8 @@ async def generate_final_report(query: str, all_contexts: List[Any]) -> str:
                         basic_report += f"### {title}\n{summary}\n\n"
             
             return basic_report
-    except Exception as e:
-        logger.error(f"Error generating final report: {str(e)}")
+    except Exception:
+        logger.exception("Error generating final report")
         
         # Create a simple report as fallback
         fallback_report = f"# Research Findings on: {query}\n\n"
@@ -415,7 +415,7 @@ async def generate_final_report(query: str, all_contexts: List[Any]) -> str:
         
         return fallback_report
 
-async def process_search_results(query: str, search_query: str, search_results: Any) -> List[str]:
+async def process_search_results(query: str, search_query: str, search_results: Any) -> list[str]:
     """
     Process search results to extract relevant contexts.
     """
@@ -445,11 +445,11 @@ async def process_search_results(query: str, search_query: str, search_results: 
                     item_text = await extract_text_from_search_result(item)
                     if item_text and len(item_text) > 20:  # Avoid very short snippets
                         contexts.append(item_text)
-                except Exception as e:
-                    logger.error(f"Error processing list item: {str(e)}")
+                except Exception:
+                    logger.exception("Error processing list item")
     
-    except Exception as e:
-        logger.error(f"Error in process_search_results: {str(e)}")
+    except Exception:
+        logger.exception("Error in process_search_results")
         
         # Fallback: try to extract text directly
         try:
@@ -464,8 +464,8 @@ async def process_search_results(query: str, search_query: str, search_results: 
                 result_str = str(search_results)
                 if result_str:
                     contexts.append(result_str)
-        except Exception as e2:
-            logger.error(f"Error in fallback processing: {str(e2)}")
+        except Exception:
+            logger.exception("Error in fallback processing")
     
     # Ensure all contexts are strings (sanitize output)
     sanitized_contexts = []
@@ -475,13 +475,13 @@ async def process_search_results(query: str, search_query: str, search_results: 
         else:
             try:
                 sanitized_contexts.append(str(context))
-            except Exception as e:
-                logger.error(f"Error converting context to string: {str(e)}")
+            except Exception:
+                logger.exception("Error converting context to string")
     
     logger.info(f"Extracted {len(sanitized_contexts)} contexts from search results")
     return sanitized_contexts
 
-async def deep_research(query: str, iteration_limit: int = 3) -> Dict[str, Any]:
+async def deep_research(query: str, iteration_limit: int = 3) -> dict[str, Any]:
     """
     Perform deep research on a query using iterative search and context extraction.
     """
@@ -526,8 +526,8 @@ async def deep_research(query: str, iteration_limit: int = 3) -> Dict[str, Any]:
                         search_results = retrieve_web_content(search_query)
                         
                     logger.info(f"Retrieved {len(search_results) if isinstance(search_results, list) else 'single'} search result(s)")
-                except Exception as e:
-                    logger.error(f"Error retrieving web content: {str(e)}")
+                except Exception:
+                    logger.exception("Error retrieving web content")
                     continue
                 
                 # Process the search results to extract relevant contexts
@@ -535,8 +535,8 @@ async def deep_research(query: str, iteration_limit: int = 3) -> Dict[str, Any]:
                 if contexts:
                     iteration_contexts.extend(contexts)
                     
-            except Exception as e:
-                logger.error(f"Error during web search for '{search_query}': {str(e)}")
+            except Exception:
+                logger.exception(f"Error during web search for '{search_query}'")
         
         if iteration_contexts:
             aggregated_contexts.extend(iteration_contexts)
@@ -558,8 +558,8 @@ async def deep_research(query: str, iteration_limit: int = 3) -> Dict[str, Any]:
     try:
         final_report = await generate_final_report(query, aggregated_contexts)
     except Exception as e:
-        logger.error(f"Error in final report generation: {str(e)}")
-        final_report = f"Unable to generate a comprehensive report on '{query}' due to an error: {str(e)}"
+        logger.exception("Error in final report generation")
+        final_report = f"Unable to generate a comprehensive report on '{query}' due to an error: {e!s}"
         
         # Try a simpler approach if complex report generation fails
         if aggregated_contexts:
@@ -567,8 +567,8 @@ async def deep_research(query: str, iteration_limit: int = 3) -> Dict[str, Any]:
                 final_report = f"Research findings on: {query}\n\n"
                 for i, context in enumerate(aggregated_contexts):
                     final_report += f"Finding {i+1}:\n{context}\n\n"
-            except Exception as e2:
-                logger.error(f"Error in fallback report generation: {str(e2)}")
+            except Exception:
+                logger.exception("Error in fallback report generation")
     
     return {
         "report": final_report,

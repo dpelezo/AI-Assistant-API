@@ -1,18 +1,19 @@
 # app/api/endpoints/chat.py
-import os
 import asyncio
 import datetime
 import logging
+import os
+from typing import Any
 from uuid import uuid4
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from pydantic import BaseModel, Field
+
 from app.api.dependencies import get_active_threads, get_workflow_factory, require_debug
-from app.services.memory import get_checkpointer
+from app.core.langsmith_setup import create_run_and_child, end_run
 from app.services.ai import get_system_message
-from app.core.langsmith_setup import trace_decorator, create_run_and_child, end_run
+from app.services.memory import get_checkpointer
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -28,16 +29,16 @@ thread_messages = {}
 # Models
 class Query(BaseModel):
     content: str = Field(..., description="Query content for the AI assistant")
-    thread_id: Optional[str] = Field(None, description="Optional thread ID for conversation continuity")
+    thread_id: str | None = Field(None, description="Optional thread ID for conversation continuity")
 
 class Message(BaseModel):
     role: str
     content: str
-    tool_calls: Optional[List[Dict[str, Any]]] = None
+    tool_calls: list[dict[str, Any]] | None = None
 
 class ConversationResponse(BaseModel):
     thread_id: str
-    messages: List[Message]
+    messages: list[Message]
 
 router = APIRouter()
 
@@ -64,8 +65,6 @@ async def process_query(query: Query, background_tasks: BackgroundTasks):
     # Get the workflow
     workflow_app = active_threads[thread_id]
     
-    # Add query to thread
-    human_message = HumanMessage(content=query.content)
     
     # Store message in our thread_messages dictionary
     if thread_id not in thread_messages:
@@ -103,7 +102,7 @@ async def process_query(query: Query, background_tasks: BackgroundTasks):
                     initial_messages.append(HumanMessage(content=msg["content"]))
                 elif msg["type"] == "ai":
                     # Create AI message with proper tool_calls if present
-                    if "tool_calls" in msg and msg["tool_calls"]:
+                    if msg.get("tool_calls"):
                         initial_messages.append(AIMessage(
                             content=msg["content"],
                             tool_calls=msg["tool_calls"]
@@ -220,18 +219,18 @@ async def process_query(query: Query, background_tasks: BackgroundTasks):
                         }]
                     )
                     logger.info(f"Saved thread {thread_id} to checkpointer")
-                except Exception as e:
-                    logger.error(f"Error saving thread to checkpointer: {str(e)}")
+                except Exception:
+                    logger.exception("Error saving thread to checkpointer")
                     
             finally:
                 loop.close()
                 
         except Exception as e:
-            logger.error(f"Error processing query: {str(e)}")
+            logger.exception("Error processing query")
             # Create an error message to add to the thread
             error_message = {
                 "type": "ai",
-                "content": f"Error processing your request: {str(e)}",
+                "content": f"Error processing your request: {e!s}",
                 "timestamp": datetime.datetime.now().isoformat()
             }
             thread_messages[thread_id].append(error_message)
@@ -262,7 +261,7 @@ async def get_thread(thread_id: str):
     print(f"Getting thread: {thread_id}")
     
     # First check our thread_messages dictionary
-    if thread_id in thread_messages and thread_messages[thread_id]:
+    if thread_messages.get(thread_id):
         print(f"Found thread {thread_id} in memory with {len(thread_messages[thread_id])} messages")
         messages = []
         
@@ -273,7 +272,7 @@ async def get_thread(thread_id: str):
             elif msg["type"] == "ai":
                 # Handle tool_calls - explicitly check and log
                 tool_calls = None
-                if "tool_calls" in msg and msg["tool_calls"]:
+                if msg.get("tool_calls"):
                     tool_calls = msg["tool_calls"]
                     print(f"Found tool calls in message: {tool_calls}")
                 
@@ -318,8 +317,8 @@ async def get_thread(thread_id: str):
                 thread_id=thread_id,
                 messages=messages
             )
-    except Exception as e:
-        print(f"Error retrieving thread from checkpointer: {str(e)}")
+    except Exception:
+        logger.exception("Error retrieving thread from checkpointer")
     
     # Thread not found
     print(f"Thread not found: {thread_id}")
@@ -344,8 +343,8 @@ async def delete_thread(thread_id: str):
     try:
         checkpointer.delete(thread_config)
         print(f"Successfully deleted thread {thread_id} from checkpointer")
-    except Exception as e:
-        print(f"Error deleting thread from checkpointer: {str(e)}")
+    except Exception:
+        logger.exception("Error deleting thread from checkpointer")
     
     return {"status": "success", "message": "Thread deleted"}
 

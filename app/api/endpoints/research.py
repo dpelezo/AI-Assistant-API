@@ -1,18 +1,18 @@
 # Updated research.py with LangSmith tracing
-import os
-import logging
 import asyncio
 import datetime
+import logging
+import os
 import uuid
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
 
+from app.api.dependencies import require_debug
+from app.core.config import settings
+from app.core.langsmith_setup import create_run_and_child, end_run
 from app.services.deep_research import deep_research
 from app.services.memory import get_checkpointer
-from app.core.config import settings
-from app.api.dependencies import require_debug
-from app.core.langsmith_setup import create_run_and_child, end_run, trace_decorator
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -28,16 +28,16 @@ class ResearchQuery(BaseModel):
 class ResearchStatus(BaseModel):
     research_id: str
     status: str
-    progress: Optional[int] = None
-    total_iterations: Optional[int] = None
+    progress: int | None = None
+    total_iterations: int | None = None
 
 class ResearchResult(BaseModel):
     research_id: str
     query: str
     report: str
-    contexts: Optional[List[str]] = None
-    search_queries: Optional[List[str]] = None
-    iterations: Optional[int] = None
+    contexts: list[str] | None = None
+    search_queries: list[str] | None = None
+    iterations: int | None = None
 
 # Store for active research tasks
 active_research = {}
@@ -142,14 +142,14 @@ async def start_research(query: ResearchQuery, background_tasks: BackgroundTasks
                         "timestamp": datetime.datetime.now().isoformat()
                     }]
                     checkpointer.put(config, active_research[research_id], metadata, new_versions)
-                    logger.info(f"Successfully saved research result to checkpointer")
-                except Exception as e:
-                    logger.error(f"Error saving research result: {str(e)}")
+                    logger.info("Successfully saved research result to checkpointer")
+                except Exception:
+                    logger.exception("Error saving research result")
             finally:
                 loop.close()
                 
         except Exception as e:
-            logger.error(f"Error in deep research: {str(e)}")
+            logger.exception("Error in deep research")
             # Update status on error
             active_research[research_id] = {
                 "status": "error",
@@ -210,8 +210,8 @@ async def check_research_status(research_id: str):
                 progress=research.get("progress", 0),
                 total_iterations=research.get("total_iterations", 0)
             )
-    except Exception as e:
-        logger.error(f"Error retrieving research status: {str(e)}")
+    except Exception:
+        logger.exception("Error retrieving research status")
     
     # Not found
     raise HTTPException(status_code=404, detail="Research not found")
@@ -252,8 +252,8 @@ async def get_research_result(research_id: str):
                 search_queries=result.get("search_queries"),
                 iterations=result.get("iterations")
             )
-    except Exception as e:
-        logger.error(f"Error retrieving research result: {str(e)}")
+    except Exception:
+        logger.exception("Error retrieving research result")
     
     # Not found
     raise HTTPException(status_code=404, detail="Research not found")
@@ -343,6 +343,7 @@ async def get_research_report(research_id: str):
                 "langsmith_run_id": saved_research.get("langsmith_run_id")
             }
     except Exception as e:
-        return {"error": f"Error retrieving research from checkpointer: {str(e)}"}
+        logger.exception("Error retrieving research from checkpointer")
+        return {"error": f"Error retrieving research from checkpointer: {e!s}"}
     
     return {"error": "Research not found"}

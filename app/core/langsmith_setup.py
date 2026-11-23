@@ -1,13 +1,13 @@
 # app/core/langsmith_setup.py
-import os
 import logging
-from typing import Optional, Dict, Any
+import os
+from typing import Any
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-def setup_langsmith(project_name: Optional[str] = None):
+def setup_langsmith(project_name: str | None = None):
     """
     Set up LangSmith tracing for the application.
     
@@ -45,8 +45,8 @@ def wrap_functions_with_langsmith():
     """
     try:
         # Import LangSmith wrappers
-        from langsmith.wrappers import wrap_openai
         import openai
+        from langsmith.wrappers import wrap_openai
         
         # Check if OpenAI client is being used
         if hasattr(openai, "Client"):
@@ -64,15 +64,15 @@ def wrap_functions_with_langsmith():
         logger.warning(f"Failed to import LangSmith wrappers: {e}")
         logger.warning("Install with: pip install langsmith")
         return False
-    except Exception as e:
-        logger.error(f"Error wrapping functions with LangSmith: {e}")
+    except Exception:
+        logger.exception("Error wrapping functions with LangSmith")
         return False
 
 def create_run_and_child(
     name: str, 
     run_type: str, 
-    inputs: Dict[str, Any], 
-    project_name: Optional[str] = None
+    inputs: dict[str, Any], 
+    project_name: str | None = None
 ):
     """
     Create a custom run in LangSmith with proper tracing.
@@ -108,8 +108,8 @@ def create_run_and_child(
     except ImportError:
         logger.warning("LangSmith not installed. Install with: pip install langsmith")
         return None, None
-    except Exception as e:
-        logger.error(f"Error creating LangSmith run: {e}")
+    except Exception:
+        logger.exception("Error creating LangSmith run")
         return None, None
 
 def end_run(client, run, outputs=None, error=None):
@@ -140,8 +140,8 @@ def end_run(client, run, outputs=None, error=None):
                 end_time=None,  # Will set to current time
             )
             logger.info(f"Updated LangSmith run {run.id} with outputs")
-    except Exception as e:
-        logger.error(f"Error ending LangSmith run: {e}")
+    except Exception:
+        logger.exception("Error ending LangSmith run")
 
 def trace_decorator(run_type=None, name=None, project_name=None):
     """

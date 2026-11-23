@@ -1,18 +1,17 @@
 # app/models/state.py
-from typing import Dict, Any, List, TypedDict, Optional
-from langchain_core.messages import AIMessage, HumanMessage
+from typing import Any, TypedDict
 
 
 class MessageDict(TypedDict):
     """TypedDict for message dictionaries."""
     role: str
     content: str
-    tool_calls: Optional[List[Dict[str, Any]]]
+    tool_calls: list[dict[str, Any]] | None
 
 
 class ThreadState(TypedDict):
     """TypedDict for thread state."""
-    messages: List[Any]  # Can be AIMessage or HumanMessage
+    messages: list[Any]  # Can be AIMessage or HumanMessage
 
 
 class MemoryItem(TypedDict):
