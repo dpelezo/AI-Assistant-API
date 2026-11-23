@@ -1,9 +1,10 @@
 # app/services/ai.py
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage
-from app.services.web_search import retrieve_web_content
-from app.core.config import settings
 from langsmith import traceable
+
+from app.core.config import settings
+from app.services.web_search import retrieve_web_content
 
 
 @traceable # Auto-trace this function

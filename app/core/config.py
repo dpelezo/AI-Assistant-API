@@ -1,6 +1,7 @@
 # app/core/config.py
+
 from pydantic_settings import BaseSettings
-from typing import List, Optional
+
 
 class Settings(BaseSettings):
     # API settings
@@ -9,7 +10,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
     
     # CORS settings
-    BACKEND_CORS_ORIGINS: List[str] = ["*"]
+    BACKEND_CORS_ORIGINS: list[str] = ["*"]
     
     # Security
     SECRET_KEY: str = "supersecretkey"
@@ -25,7 +26,7 @@ class Settings(BaseSettings):
     DEFAULT_RESEARCH_ITERATIONS: int = 3
     
     # LangSmith settings
-    LANGSMITH_API_KEY: Optional[str] = None
+    LANGSMITH_API_KEY: str | None = None
     LANGSMITH_ENDPOINT: str = "https://api.smith.langchain.com"
     LANGSMITH_TRACING: bool = True
     LANGSMITH_PROJECT: str = "ai-assistant-api"

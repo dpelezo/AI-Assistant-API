@@ -1,9 +1,8 @@
 # app/api/dependencies.py
-from app.services.memory import get_checkpointer
-from app.core.workflow import create_workflow
 from fastapi import HTTPException
-from app.core.config import settings
 
+from app.core.config import settings
+from app.core.workflow import create_workflow
 
 # Store active threads
 active_threads = {}

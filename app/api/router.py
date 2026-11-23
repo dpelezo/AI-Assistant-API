@@ -1,8 +1,10 @@
 # app/api/router.py
-from fastapi import APIRouter, Request, HTTPException, Depends
+import logging
+
+from fastapi import APIRouter
+
 from app.api.endpoints import chat, research
 from app.core.config import settings
-import logging
 
 logger = logging.getLogger(__name__)
 
