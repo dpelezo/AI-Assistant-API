@@ -401,6 +401,7 @@ def sources_fallback_report(query: str, contexts: list[str], limit: int = 6) -> 
         n = len(seen)
         site = urlparse(url).netloc.removeprefix("www.") if url else ""
         lines.append(f"{n}. [{site or url}]({url})" if url else f"{n}. Source {n}")
+        lines.append("")  # blank line: the excerpt renders as its own paragraph
         lines.append(f"   {excerpt}")
         lines.append("")
         if len(seen) >= limit:
