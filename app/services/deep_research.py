@@ -1,4 +1,5 @@
 # app/services/deep_research.py
+import ast
 import logging
 import re
 from typing import Any
@@ -82,7 +83,7 @@ async def generate_search_queries(query: str) -> list[str]:
             
             if list_match:
                 try:
-                    search_queries = eval(list_match.group(0))
+                    search_queries = ast.literal_eval(list_match.group(0))
                     if isinstance(search_queries, list):
                         logger.info(f"Generated {len(search_queries)} search queries")
                         return search_queries
@@ -258,7 +259,7 @@ async def get_new_search_queries(query: str, previous_queries: list[str], all_co
             
             if list_match:
                 try:
-                    new_queries = eval(list_match.group(0))
+                    new_queries = ast.literal_eval(list_match.group(0))
                     if isinstance(new_queries, list):
                         logger.info(f"Generated {len(new_queries)} new search queries")
                         return new_queries
