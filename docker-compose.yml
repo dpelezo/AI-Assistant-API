@@ -12,7 +12,6 @@ services:
       - DEBUG=True
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - LLM_MODEL=${LLM_MODEL:-claude-haiku-5-5}
-      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0}
       - EXA_API_KEY=${EXA_API_KEY}
       - SECRET_KEY=${SECRET_KEY:-supersecretkey}
       
