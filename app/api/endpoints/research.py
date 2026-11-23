@@ -4,13 +4,14 @@ import logging
 import asyncio
 import datetime
 import uuid
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 
 from app.services.deep_research import deep_research
 from app.services.memory import get_checkpointer
 from app.core.config import settings
+from app.api.dependencies import require_debug
 from app.core.langsmith_setup import create_run_and_child, end_run, trace_decorator
 
 # Configure logging
@@ -43,7 +44,6 @@ active_research = {}
 
 router = APIRouter()
 
-@router.get("/debug/threads", dependencies=[Depends(require_debug)])
 @router.post("/query", response_model=ResearchStatus)
 async def start_research(query: ResearchQuery, background_tasks: BackgroundTasks):
     """Start a deep research on the provided query."""
@@ -258,7 +258,7 @@ async def get_research_result(research_id: str):
     # Not found
     raise HTTPException(status_code=404, detail="Research not found")
 
-@router.get("/debug/latest", response_model=dict)
+@router.get("/debug/latest", response_model=dict, dependencies=[Depends(require_debug)])
 async def get_latest_research():
     """Debug endpoint to get the most recent research report."""
     if not active_research:
@@ -291,7 +291,7 @@ async def get_latest_research():
         "report_preview": latest_research["result"]["report"][:1000] + "..." if len(latest_research["result"]["report"]) > 1000 else latest_research["result"]["report"]
     }
 
-@router.get("/debug/all", response_model=list)
+@router.get("/debug/all", response_model=list, dependencies=[Depends(require_debug)])
 async def list_all_research():
     """Debug endpoint to list all active research jobs."""
     research_list = []
@@ -315,7 +315,7 @@ async def list_all_research():
     
     return research_list
 
-@router.get("/debug/report/{research_id}")
+@router.get("/debug/report/{research_id}", dependencies=[Depends(require_debug)])
 async def get_research_report(research_id: str):
     """Debug endpoint to get a research report by ID."""
     # Check active research first

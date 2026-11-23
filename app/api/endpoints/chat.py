@@ -4,12 +4,12 @@ import asyncio
 import datetime
 import logging
 from uuid import uuid4
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from app.api.dependencies import get_active_threads, get_workflow_factory
+from app.api.dependencies import get_active_threads, get_workflow_factory, require_debug
 from app.services.memory import get_checkpointer
 from app.services.ai import get_system_message
 from app.core.langsmith_setup import trace_decorator, create_run_and_child, end_run
@@ -41,7 +41,6 @@ class ConversationResponse(BaseModel):
 
 router = APIRouter()
 
-@router.get("/debug/threads", dependencies=[Depends(require_debug)])
 @router.post("/query", response_model=ConversationResponse)
 async def process_query(query: Query, background_tasks: BackgroundTasks):
     """Process a query and return the response."""
@@ -350,7 +349,7 @@ async def delete_thread(thread_id: str):
     
     return {"status": "success", "message": "Thread deleted"}
 
-@router.get("/debug/threads")
+@router.get("/debug/threads", dependencies=[Depends(require_debug)])
 async def debug_list_threads():
     """Debug endpoint to list all active threads."""
     return {
