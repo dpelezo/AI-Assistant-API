@@ -1,5 +1,7 @@
 """API tests. No test here calls a live model."""
 
+import anthropic
+import httpx
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
@@ -50,7 +52,7 @@ def test_query_returns_thread_and_stores_ai_reply(client, fake_graph):
     body = r.json()
     thread_id = body["thread_id"]
     assert body["messages"] == [
-        {"role": "human", "content": "What is MCP?", "tool_calls": None}
+        {"role": "human", "content": "What is MCP?", "tool_calls": None, "is_error": False}
     ]
 
     # TestClient runs background tasks before returning, so the graph has run.
@@ -72,6 +74,46 @@ def test_query_continues_existing_thread(client, fake_graph):
 
     sent = fake_graph.calls[-1]["state"]["messages"]
     assert [m.content for m in sent[1:]] == ["First", "Fake answer", "Second"]
+
+
+def test_model_error_shows_friendly_message(client, monkeypatch):
+    class FailingGraph:
+        async def ainvoke(self, state, config=None):
+            response = httpx.Response(
+                400, request=httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+            )
+            raise anthropic.BadRequestError(
+                "Your credit balance is too low to access the Anthropic API.",
+                response=response,
+                body=None,
+            )
+
+    monkeypatch.setattr("app.api.endpoints.chat.create_workflow", FailingGraph)
+    thread_id = client.post("/api/query", json={"content": "Hi"}).json()["thread_id"]
+
+    reply = client.get(f"/api/thread/{thread_id}").json()["messages"][-1]
+    assert reply["role"] == "ai"
+    assert reply["is_error"] is True
+    assert reply["content"] == "The assistant is temporarily unavailable. Please try again later."
+    assert "credit" not in reply["content"]
+
+
+def test_error_notices_are_not_sent_back_to_the_model(client, monkeypatch, fake_graph):
+    class FailingGraph:
+        async def ainvoke(self, state, config=None):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr("app.api.endpoints.chat.create_workflow", FailingGraph)
+    thread_id = client.post("/api/query", json={"content": "First"}).json()["thread_id"]
+
+    # The thread already exists, so the next message reuses its stored graph.
+    from app.api.endpoints.chat import active_threads
+
+    active_threads[thread_id] = fake_graph
+    client.post("/api/query", json={"content": "Second", "thread_id": thread_id})
+
+    sent = [m.content for m in fake_graph.calls[-1]["state"]["messages"][1:]]
+    assert sent == ["First", "Second"]
 
 
 def test_unknown_thread_returns_404(client):

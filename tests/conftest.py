@@ -18,6 +18,7 @@ def no_live_calls(monkeypatch):
         raise AssertionError("Unit tests must not call a live model")
 
     monkeypatch.setattr("app.core.workflow.get_model", _blocked)
+    monkeypatch.setattr("app.services.deep_research.get_model", _blocked)
     monkeypatch.setattr(
         "app.api.endpoints.chat.create_run_and_child", lambda **kwargs: (None, None)
     )

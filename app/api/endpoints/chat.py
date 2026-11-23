@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from app.api.dependencies import get_active_threads, get_workflow_factory, require_debug
 from app.core.langsmith_setup import create_run_and_child, end_run
 from app.services.ai import get_system_message
+from app.services.errors import user_facing_error
 from app.services.memory import get_checkpointer
 
 # Configure logging
@@ -35,6 +36,7 @@ class Message(BaseModel):
     role: str
     content: str
     tool_calls: list[dict[str, Any]] | None = None
+    is_error: bool = False
 
 class ConversationResponse(BaseModel):
     thread_id: str
@@ -98,6 +100,8 @@ async def process_query(query: Query, background_tasks: BackgroundTasks):
             
             # Add all previous messages to the initial state
             for msg in messages:
+                if msg.get("is_error"):
+                    continue  # error notices are for the user, not the model
                 if msg["type"] == "human":
                     initial_messages.append(HumanMessage(content=msg["content"]))
                 elif msg["type"] == "ai":
@@ -230,7 +234,8 @@ async def process_query(query: Query, background_tasks: BackgroundTasks):
             # Create an error message to add to the thread
             error_message = {
                 "type": "ai",
-                "content": f"Error processing your request: {e!s}",
+                "content": user_facing_error(e),
+                "is_error": True,
                 "timestamp": datetime.datetime.now().isoformat()
             }
             thread_messages[thread_id].append(error_message)
@@ -279,7 +284,8 @@ async def get_thread(thread_id: str):
                 messages.append(Message(
                     role="ai", 
                     content=msg["content"],
-                    tool_calls=tool_calls
+                    tool_calls=tool_calls,
+                    is_error=msg.get("is_error", False),
                 ))
         
         print(f"Returning {len(messages)} messages, last message tool_calls: {messages[-1].tool_calls if messages and messages[-1].role == 'ai' else None}")
@@ -307,7 +313,8 @@ async def get_thread(thread_id: str):
                     messages.append(Message(
                         role="ai", 
                         content=msg["content"],
-                        tool_calls=tool_calls
+                        tool_calls=tool_calls,
+                        is_error=msg.get("is_error", False),
                     ))
             
             # Also update our in-memory storage
