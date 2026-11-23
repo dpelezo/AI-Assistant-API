@@ -9,6 +9,10 @@ A FastAPI backend for a research chat assistant: a LangGraph agent answers with 
 - **Live demo:** [ai-assistant-frontend-beta.vercel.app](https://ai-assistant-frontend-beta.vercel.app) (front end in [AI_assistant_frontend](https://github.com/dpelezo/AI_assistant_frontend))
 - **API docs:** [ai-assistant-api-dpelezos-projects.vercel.app/docs](https://ai-assistant-api-dpelezos-projects.vercel.app/docs)
 
+![Search mode answering a question with live web results](docs/screenshots/answer.png)
+
+*Search mode in the live demo, November 23, 2026. Figures come from web search at that time.*
+
 ## How it works
 
 ```mermaid
