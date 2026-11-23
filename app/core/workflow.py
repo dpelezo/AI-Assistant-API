@@ -7,10 +7,6 @@ import logging
 from app.services.ai import get_model
 from app.services.web_search import retrieve_web_content
 
-# 1. Configure logging to display DEBUG messages
-logging.basicConfig(level=logging.DEBUG)
-
-# 2. Create the logger object
 logger = logging.getLogger(__name__)
 
 # Determine whether to continue or end
