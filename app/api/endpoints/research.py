@@ -43,6 +43,7 @@ active_research = {}
 
 router = APIRouter()
 
+@router.get("/debug/threads", dependencies=[Depends(require_debug)])
 @router.post("/query", response_model=ResearchStatus)
 async def start_research(query: ResearchQuery, background_tasks: BackgroundTasks):
     """Start a deep research on the provided query."""

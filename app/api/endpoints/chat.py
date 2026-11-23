@@ -41,6 +41,7 @@ class ConversationResponse(BaseModel):
 
 router = APIRouter()
 
+@router.get("/debug/threads", dependencies=[Depends(require_debug)])
 @router.post("/query", response_model=ConversationResponse)
 async def process_query(query: Query, background_tasks: BackgroundTasks):
     """Process a query and return the response."""
