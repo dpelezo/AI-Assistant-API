@@ -48,6 +48,18 @@ def message_text(content: Any) -> str:
     return "" if content is None else str(content)
 
 
+TRUNCATION_NOTE = (
+    "\n\n*This answer reached the length limit and was cut off. "
+    "Ask a narrower question for a complete answer.*"
+)
+
+
+def hit_length_limit(message: Any) -> bool:
+    """True when the model stopped because it reached max_tokens."""
+    metadata = getattr(message, "response_metadata", None) or {}
+    return metadata.get("stop_reason") == "max_tokens"
+
+
 def get_system_message():
     """Get a standard system message to encourage tool use."""
     return SystemMessage(content=(

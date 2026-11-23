@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.config import settings
-from app.services.ai import get_model, message_text
+from app.services.ai import TRUNCATION_NOTE, get_model, hit_length_limit, message_text
 from app.services.web_search import retrieve_web_content
 
 # Create logger
@@ -348,7 +348,11 @@ async def generate_final_report(query: str, all_contexts: list[Any]) -> str:
         if isinstance(response, str):
             return response.strip()
         elif hasattr(response, 'content') and message_text(response.content).strip():
-            return message_text(response.content).strip()
+            report = message_text(response.content).strip()
+            if hit_length_limit(response):
+                logger.warning("Final report hit max_tokens and was cut off")
+                report += TRUNCATION_NOTE
+            return report
         elif isinstance(response, dict) and 'content' in response and isinstance(response['content'], str):
             return response['content'].strip()
         else:

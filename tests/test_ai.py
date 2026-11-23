@@ -28,7 +28,7 @@ def test_temperature_sent_only_when_configured(monkeypatch):
 
 
 def test_max_tokens_leaves_room_for_thinking(monkeypatch):
-    assert request_payload(monkeypatch)["max_tokens"] == settings.LLM_MAX_TOKENS == 4096
+    assert request_payload(monkeypatch)["max_tokens"] == settings.LLM_MAX_TOKENS == 16000
 
 
 def test_message_text_handles_strings_and_content_blocks():
@@ -41,3 +41,11 @@ def test_message_text_handles_strings_and_content_blocks():
     assert ai.message_text("plain") == "plain"
     assert ai.message_text(blocks) == "First part.\n\nSecond part."
     assert ai.message_text(None) == ""
+
+
+def test_hit_length_limit_reads_stop_reason():
+    from langchain_core.messages import AIMessage
+
+    assert ai.hit_length_limit(AIMessage(content="x", response_metadata={"stop_reason": "max_tokens"}))
+    assert not ai.hit_length_limit(AIMessage(content="x", response_metadata={"stop_reason": "end_turn"}))
+    assert not ai.hit_length_limit(AIMessage(content="x"))

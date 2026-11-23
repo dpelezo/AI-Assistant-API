@@ -135,6 +135,20 @@ def test_reply_with_thinking_blocks_returns_only_the_text(client, monkeypatch):
     assert "hidden reasoning" not in r.text
 
 
+def test_cut_off_reply_gets_a_note(client, monkeypatch):
+    class CutOffGraph:
+        async def ainvoke(self, state, config=None):
+            reply = AIMessage(content="The answer starts here and", response_metadata={"stop_reason": "max_tokens"})
+            return {"messages": [*state["messages"], reply]}
+
+    monkeypatch.setattr("app.api.endpoints.chat.create_workflow", CutOffGraph)
+    thread_id = client.post("/api/query", json={"content": "Explain everything"}).json()["thread_id"]
+
+    content = client.get(f"/api/thread/{thread_id}").json()["messages"][-1]["content"]
+    assert content.startswith("The answer starts here and")
+    assert "reached the length limit" in content
+
+
 def test_unknown_thread_returns_404(client):
     assert client.get("/api/thread/does-not-exist").status_code == 404
 
