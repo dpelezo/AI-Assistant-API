@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     EXA_API_KEY: str = ""
     LLM_MODEL: str = "claude-haiku-5-5"
-    LLM_TEMPERATURE: float = 0.0
+    # Leave unset: Claude 4.7 and newer models reject non-default sampling values with a 400.
+    LLM_TEMPERATURE: float | None = None
     
     # Deep Research settings
     MAX_RESEARCH_ITERATIONS: int = 5
