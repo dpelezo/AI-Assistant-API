@@ -116,6 +116,25 @@ def test_error_notices_are_not_sent_back_to_the_model(client, monkeypatch, fake_
     assert sent == ["First", "Second"]
 
 
+def test_reply_with_thinking_blocks_returns_only_the_text(client, monkeypatch):
+    class ThinkingGraph:
+        async def ainvoke(self, state, config=None):
+            reply = AIMessage(content=[
+                {"type": "thinking", "thinking": "hidden reasoning", "signature": "sig"},
+                {"type": "text", "text": "MCP is the **Model Context Protocol**."},
+            ])
+            return {"messages": [*state["messages"], reply]}
+
+    monkeypatch.setattr("app.api.endpoints.chat.create_workflow", ThinkingGraph)
+    thread_id = client.post("/api/query", json={"content": "What is MCP?"}).json()["thread_id"]
+
+    r = client.get(f"/api/thread/{thread_id}")
+    assert r.status_code == 200
+    reply = r.json()["messages"][-1]
+    assert reply["content"] == "MCP is the **Model Context Protocol**."
+    assert "hidden reasoning" not in r.text
+
+
 def test_unknown_thread_returns_404(client):
     assert client.get("/api/thread/does-not-exist").status_code == 404
 

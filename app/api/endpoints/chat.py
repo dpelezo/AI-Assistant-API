@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.api.dependencies import get_active_threads, get_workflow_factory, require_debug
 from app.core.langsmith_setup import create_run_and_child, end_run
-from app.services.ai import get_system_message
+from app.services.ai import get_system_message, message_text
 from app.services.errors import user_facing_error
 from app.services.memory import get_checkpointer
 
@@ -175,7 +175,7 @@ async def process_query(query: Query, background_tasks: BackgroundTasks):
                             # Add this message to our thread store
                             ai_message_data = {
                                 "type": "ai",
-                                "content": msg.content,
+                                "content": message_text(msg.content),
                                 "timestamp": datetime.datetime.now().isoformat()
                             }
                             

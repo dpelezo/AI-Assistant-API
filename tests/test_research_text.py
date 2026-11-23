@@ -84,3 +84,18 @@ def test_deep_research_without_model_returns_clean_sources(monkeypatch):
     assert result["search_queries"] == ["hello"]
     assert result["report"].startswith('I couldn\'t write a full report on "hello"')
     assert "I haven't seen you for months." in result["report"]
+
+
+def test_final_report_uses_text_from_content_blocks(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    class ThinkingModel:
+        async def ainvoke(self, messages):
+            return AIMessage(content=[
+                {"type": "thinking", "thinking": "hidden", "signature": "sig"},
+                {"type": "text", "text": "# Hello\n\nA greeting."},
+            ])
+
+    monkeypatch.setattr(deep_research, "get_model", lambda: ThinkingModel())
+    report = run(deep_research.generate_final_report("hello", ["context" + deep_research.SOURCE_SEPARATOR + "https://example.com"]))
+    assert report == "# Hello\n\nA greeting."

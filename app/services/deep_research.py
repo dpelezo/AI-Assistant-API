@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.config import settings
-from app.services.ai import get_model
+from app.services.ai import get_model, message_text
 from app.services.web_search import retrieve_web_content
 
 # Create logger
@@ -77,7 +77,7 @@ async def generate_search_queries(query: str) -> list[str]:
         
         if response and response.content:
             # Try to extract list using regex for safer parsing
-            content = response.content.strip()
+            content = message_text(response.content).strip()
             list_pattern = r'\[.*?\]'
             list_match = re.search(list_pattern, content, re.DOTALL)
             
@@ -162,7 +162,7 @@ async def is_page_useful(query: str, page_content: Any) -> bool:
         response = await model.ainvoke(messages)
         
         if response and response.content:
-            answer = response.content.strip().lower()
+            answer = message_text(response.content).strip().lower()
             return "yes" in answer
         
     except Exception:
@@ -204,7 +204,7 @@ async def extract_relevant_context(query: str, search_query: str, page_content: 
         response = await model.ainvoke(messages)
         
         if response and hasattr(response, 'content') and response.content:
-            return response.content.strip()
+            return message_text(response.content).strip()
         elif isinstance(response, str):
             return response.strip()
         elif isinstance(response, dict) and 'content' in response:
@@ -247,7 +247,7 @@ async def get_new_search_queries(query: str, previous_queries: list[str], all_co
         response = await model.ainvoke(messages)
         
         if response and response.content:
-            content = response.content.strip()
+            content = message_text(response.content).strip()
             
             # If empty or just whitespace, no more queries needed
             if not content or content.isspace():
@@ -347,8 +347,8 @@ async def generate_final_report(query: str, all_contexts: list[Any]) -> str:
         # Handle different response formats
         if isinstance(response, str):
             return response.strip()
-        elif hasattr(response, 'content') and isinstance(response.content, str):
-            return response.content.strip()
+        elif hasattr(response, 'content') and message_text(response.content).strip():
+            return message_text(response.content).strip()
         elif isinstance(response, dict) and 'content' in response and isinstance(response['content'], str):
             return response['content'].strip()
         else:
