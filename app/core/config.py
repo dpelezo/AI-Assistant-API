@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # Model settings
     ANTHROPIC_API_KEY: str = ""
     EXA_API_KEY: str = ""
-    LLM_MODEL: str = "claude-3-5-sonnet-20240620"
+    LLM_MODEL: str = "claude-haiku-5-5"
     LLM_TEMPERATURE: float = 0.0
     
     # Deep Research settings
