@@ -1,7 +1,10 @@
 # app/core/langsmith_setup.py
 import logging
 import os
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
 from app.core.config import settings
 
@@ -84,25 +87,32 @@ def create_run_and_child(
         project_name: Optional project name to use for this run
     
     Returns:
-        A tuple of (ls_client, run) that can be used for further tracing
+        A tuple of (ls_client, run) that can be used for further tracing,
+        or (None, None) when LangSmith is not configured.
     """
+    if not settings.is_langsmith_enabled:
+        return None, None
+
     try:
         import langsmith as ls
-        
+
         # Use specified project or fall back to environment variable
         project = project_name or os.environ.get("LANGSMITH_PROJECT", "default")
-        
-        # Create client
+
         client = ls.Client()
-        
-        # Start run
-        run = client.run_create(
+
+        # create_run returns None, so we choose the run ID ourselves
+        run_id = uuid4()
+        client.create_run(
             name=name,
-            run_type=run_type,
             inputs=inputs,
+            run_type=run_type,
             project_name=project,
+            id=run_id,
+            start_time=datetime.now(UTC),
         )
-        
+        run = SimpleNamespace(id=run_id)
+
         logger.info(f"Created LangSmith run: {run.id} ({name})")
         return client, run
     except ImportError:
@@ -127,17 +137,17 @@ def end_run(client, run, outputs=None, error=None):
     
     try:
         if error:
-            client.run_update(
+            client.update_run(
                 run.id,
                 error=str(error),
-                end_time=None,  # Will set to current time
+                end_time=datetime.now(UTC),
             )
             logger.info(f"Updated LangSmith run {run.id} with error")
         else:
-            client.run_update(
+            client.update_run(
                 run.id,
                 outputs=outputs or {},
-                end_time=None,  # Will set to current time
+                end_time=datetime.now(UTC),
             )
             logger.info(f"Updated LangSmith run {run.id} with outputs")
     except Exception:
