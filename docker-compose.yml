@@ -11,8 +11,8 @@ services:
       # Core settings
       - DEBUG=True
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - MODEL_NAME=claude-3-5-sonnet-20240620
-      - TEMPERATURE=0
+      - LLM_MODEL=${LLM_MODEL:-claude-haiku-5-5}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0}
       - EXA_API_KEY=${EXA_API_KEY}
       - SECRET_KEY=${SECRET_KEY:-supersecretkey}
       
