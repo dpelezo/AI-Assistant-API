@@ -12,6 +12,7 @@ from app.api.dependencies import require_debug
 from app.core.config import settings
 from app.core.langsmith_setup import create_run_and_child, end_run
 from app.services.deep_research import deep_research
+from app.services.errors import user_facing_error
 from app.services.memory import get_checkpointer
 
 # Configure logging
@@ -30,6 +31,7 @@ class ResearchStatus(BaseModel):
     status: str
     progress: int | None = None
     total_iterations: int | None = None
+    error: str | None = None
 
 class ResearchResult(BaseModel):
     research_id: str
@@ -154,7 +156,7 @@ async def start_research(query: ResearchQuery, background_tasks: BackgroundTasks
             active_research[research_id] = {
                 "status": "error",
                 "query": query.query,
-                "error": str(e),
+                "error": user_facing_error(e),
                 "progress": 0,
                 "total_iterations": iteration_limit,
                 "langsmith_run_id": ls_run.id if ls_run else None,
@@ -196,7 +198,8 @@ async def check_research_status(research_id: str):
             research_id=research_id,
             status=research["status"],
             progress=research.get("progress", 0),
-            total_iterations=research.get("total_iterations", 0)
+            total_iterations=research.get("total_iterations", 0),
+            error=research.get("error"),
         )
     
     # Try to get from checkpointer if not active
@@ -208,7 +211,8 @@ async def check_research_status(research_id: str):
                 research_id=research_id,
                 status=research["status"],
                 progress=research.get("progress", 0),
-                total_iterations=research.get("total_iterations", 0)
+                total_iterations=research.get("total_iterations", 0),
+                error=research.get("error"),
             )
     except Exception:
         logger.exception("Error retrieving research status")
