@@ -99,3 +99,16 @@ def test_final_report_uses_text_from_content_blocks(monkeypatch):
     monkeypatch.setattr(deep_research, "get_model", lambda: ThinkingModel())
     report = run(deep_research.generate_final_report("hello", ["context" + deep_research.SOURCE_SEPARATOR + "https://example.com"]))
     assert report == "# Hello\n\nA greeting."
+
+
+def test_cut_off_report_gets_a_note(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    class CutOffModel:
+        async def ainvoke(self, messages):
+            return AIMessage(content="# Report\n\nPart one and", response_metadata={"stop_reason": "max_tokens"})
+
+    monkeypatch.setattr(deep_research, "get_model", lambda: CutOffModel())
+    report = run(deep_research.generate_final_report("q", ["c" + deep_research.SOURCE_SEPARATOR + "https://example.com"]))
+    assert report.startswith("# Report")
+    assert "reached the length limit" in report

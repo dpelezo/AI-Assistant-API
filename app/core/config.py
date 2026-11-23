@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "claude-haiku-5-5"
     # Leave unset: Claude 4.7 and newer models reject non-default sampling values with a 400.
     LLM_TEMPERATURE: float | None = None
-    # Adaptive thinking counts toward this limit, so keep it well above the answer length.
-    LLM_MAX_TOKENS: int = 4096
+    # Output cap per model call. Adaptive thinking counts toward it, so keep it well above the
+    # answer length. The Anthropic SDK refuses non-streaming calls above about 21,333 tokens.
+    LLM_MAX_TOKENS: int = 16000
     
     # Deep Research settings
     MAX_RESEARCH_ITERATIONS: int = 5
