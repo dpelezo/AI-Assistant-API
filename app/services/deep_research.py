@@ -2,6 +2,7 @@
 import logging
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -11,6 +12,12 @@ from app.services.web_search import retrieve_web_content
 
 # Create logger
 logger = logging.getLogger(__name__)
+
+SOURCE_PATTERN = re.compile(
+    r"<source>\s*<url>(.*?)</url>\s*<highlights>(.*?)</highlights>\s*</source>",
+    re.DOTALL,
+)
+SOURCE_SEPARATOR = "\n\nSource: "
 
 
 async def extract_text_from_search_result(result: Any) -> str:
@@ -102,74 +109,30 @@ async def generate_search_queries(query: str) -> list[str]:
 
 async def parse_web_content_results(search_results: Any) -> dict[str, list[str]]:
     """
-    Parse the search results into a structured format with urls and highlights.
-    This function is specifically designed to handle the format returned by retrieve_web_content.
+    Parse retrieve_web_content output into parallel lists of URLs and highlights.
+
+    The tool returns plain-text <source> blocks (see web_search.format_sources).
+    Each block's highlights are kept whole, so apostrophes and line breaks
+    inside the text survive.
     """
-    logger.info("Parsing web content results")
-    
-    # Initialize result structure
-    result = {
-        "urls": [],
-        "highlights": []
-    }
-    
-    # If already in correct format, return as is
     if isinstance(search_results, dict) and "urls" in search_results and "highlights" in search_results:
         return search_results
-    
-    try:
-        # Convert results to string if it's a list or other object
-        results_str = ""
-        
-        if isinstance(search_results, list):
-            # Handle list of objects
-            for item in search_results:
-                # If it has a text attribute (like StringPromptValue)
-                if hasattr(item, 'text'):
-                    results_str += item.text
-                # If it can be converted to string
-                elif hasattr(item, '__str__'):
-                    results_str += str(item)
-                # If it's a string
-                elif isinstance(item, str):
-                    results_str += item
-        else:
-            # If not a list, convert to string
-            results_str = str(search_results)
-        
-        # Extract URLs
-        url_pattern = r'<url>(.*?)</url>'
-        urls = re.findall(url_pattern, results_str)
-        result["urls"] = urls
-        
-        # Extract highlights
-        highlights_pattern = r'<highlights>(.*?)</highlights>'
-        highlight_matches = re.findall(highlights_pattern, results_str, re.DOTALL)
-        
-        for highlight_match in highlight_matches:
-            # Extract content between quotes
-            quote_pattern = r'[\'"]([^\'"]+)[\'"]'
-            quotes = re.findall(quote_pattern, highlight_match)
-            result["highlights"].extend(quotes)
-        
-        # If no highlights found with the above method, try a different approach
-        if not result["highlights"]:
-            # Look for content inside brackets
-            bracket_pattern = r'\[(.*?)\]'
-            bracket_matches = re.findall(bracket_pattern, results_str, re.DOTALL)
-            
-            for bracket_match in bracket_matches:
-                # Extract content between quotes inside brackets
-                quote_pattern = r'[\'"]([^\'"]+)[\'"]'
-                quotes = re.findall(quote_pattern, bracket_match)
-                result["highlights"].extend(quotes)
-        
-        logger.info(f"Parsed {len(result['urls'])} URLs and {len(result['highlights'])} highlights")
-        return result
-        
-    except Exception:
-        logger.exception("Error parsing web content results")
-        return result
+
+    if isinstance(search_results, list):
+        text = "\n".join(await extract_text_from_search_result(item) for item in search_results)
+    else:
+        text = await extract_text_from_search_result(search_results)
+
+    result: dict[str, list[str]] = {"urls": [], "highlights": []}
+    for url, highlights in SOURCE_PATTERN.findall(text):
+        highlights = highlights.strip()
+        if highlights:
+            result["urls"].append(url.strip())
+            result["highlights"].append(highlights)
+
+    logger.info(f"Parsed {len(result['highlights'])} sources")
+    return result
+
 
 async def is_page_useful(query: str, page_content: Any) -> bool:
     """
@@ -366,7 +329,8 @@ async def generate_final_report(query: str, all_contexts: list[Any]) -> str:
         "You are an expert researcher and report writer. Based on the gathered contexts below and the original query, "
         "write a comprehensive, well-structured, and detailed report that addresses the query thoroughly. "
         "Include all relevant insights and conclusions without extraneous commentary. "
-        "If the contexts don't directly address the query, acknowledge this and provide the most relevant information available."
+        "If the contexts don't directly address the query, acknowledge this and provide the most relevant information available. "
+        "Format the report in Markdown, and cite sources as Markdown links using the 'Source:' URLs in the contexts."
     )
     
     messages = [
@@ -387,99 +351,61 @@ async def generate_final_report(query: str, all_contexts: list[Any]) -> str:
         elif isinstance(response, dict) and 'content' in response and isinstance(response['content'], str):
             return response['content'].strip()
         else:
-            # If we can't get a string response, generate a basic report
             logger.warning(f"Unexpected response format: {type(response)}")
-            basic_report = f"# Research Report: {query}\n\n"
-            basic_report += "## Key Findings\n\n"
-            
-            # Include the first 100 characters of each context as findings
-            for i, context in enumerate(formatted_contexts):
-                if i < 10:  # Limit to 10 findings for readability
-                    lines = context.split('\n')
-                    if len(lines) > 1:
-                        title = lines[0]
-                        content = '\n'.join(lines[1:])
-                        # Get the first 100 chars of content
-                        summary = content[:100] + "..." if len(content) > 100 else content
-                        basic_report += f"### {title}\n{summary}\n\n"
-            
-            return basic_report
+            return sources_fallback_report(query, [c for c in all_contexts if isinstance(c, str)])
     except Exception:
         logger.exception("Error generating final report")
-        
-        # Create a simple report as fallback
-        fallback_report = f"# Research Findings on: {query}\n\n"
-        for i, context in enumerate(formatted_contexts[:10]):  # Limit to first 10 contexts
-            clean_context = context.replace("Context", "Finding")
-            fallback_report += f"{clean_context}\n\n---\n\n"
-        
-        return fallback_report
+        return sources_fallback_report(query, [c for c in all_contexts if isinstance(c, str)])
 
 async def process_search_results(query: str, search_query: str, search_results: Any) -> list[str]:
     """
-    Process search results to extract relevant contexts.
+    Turn one search's results into contexts: highlight text followed by its source URL.
     """
     logger.info(f"Processing search results for query: {search_query}")
-    contexts = []
-    
-    # Check if search_results is None or empty
     if not search_results:
         logger.warning("No search results to process")
-        return contexts
-    
-    try:
-        # Parse the search results into a structured format
-        parsed_results = await parse_web_content_results(search_results)
-        
-        # Process the highlights (main content)
-        for highlight in parsed_results.get("highlights", []):
-            if highlight and isinstance(highlight, str):
-                # Add as a context directly
-                logger.info(f"Adding context (first 100 chars): {highlight[:100]}...")
-                contexts.append(highlight)
-        
-        # If no contexts from highlights, try to extract from raw results
-        if not contexts and isinstance(search_results, list):
-            for item in search_results:
-                try:
-                    item_text = await extract_text_from_search_result(item)
-                    if item_text and len(item_text) > 20:  # Avoid very short snippets
-                        contexts.append(item_text)
-                except Exception:
-                    logger.exception("Error processing list item")
-    
-    except Exception:
-        logger.exception("Error in process_search_results")
-        
-        # Fallback: try to extract text directly
-        try:
-            if isinstance(search_results, list):
-                for item in search_results:
-                    # Try direct string conversion
-                    item_str = str(item)
-                    if len(item_str) > 50:  # Avoid too short strings
-                        contexts.append(item_str)
-            else:
-                # Add the entire result as a context
-                result_str = str(search_results)
-                if result_str:
-                    contexts.append(result_str)
-        except Exception:
-            logger.exception("Error in fallback processing")
-    
-    # Ensure all contexts are strings (sanitize output)
-    sanitized_contexts = []
+        return []
+
+    parsed = await parse_web_content_results(search_results)
+    contexts = [
+        f"{text}{SOURCE_SEPARATOR}{url}" if url else text
+        for url, text in zip(parsed["urls"], parsed["highlights"], strict=True)
+    ]
+    logger.info(f"Extracted {len(contexts)} contexts from search results")
+    return contexts
+
+
+def sources_fallback_report(query: str, contexts: list[str], limit: int = 6) -> str:
+    """
+    Markdown shown when the model cannot write the report: the sources found, with short excerpts.
+    """
+    intro = (
+        f'I couldn\'t write a full report on "{query}" right now, '
+        "because the AI model is unavailable."
+    )
+    if not contexts:
+        return f"{intro} No useful sources were found either. Please try again later."
+
+    lines = [f"{intro} Here are the most relevant sources I found:", ""]
+    seen: set[str] = set()
     for context in contexts:
-        if isinstance(context, str):
-            sanitized_contexts.append(context)
-        else:
-            try:
-                sanitized_contexts.append(str(context))
-            except Exception:
-                logger.exception("Error converting context to string")
-    
-    logger.info(f"Extracted {len(sanitized_contexts)} contexts from search results")
-    return sanitized_contexts
+        text, _, url = context.partition(SOURCE_SEPARATOR)
+        key = url or text[:80]
+        if key in seen:
+            continue
+        seen.add(key)
+        excerpt = " ".join(text.split())
+        if len(excerpt) > 300:
+            excerpt = excerpt[:300].rsplit(" ", 1)[0] + "…"
+        n = len(seen)
+        site = urlparse(url).netloc.removeprefix("www.") if url else ""
+        lines.append(f"{n}. [{site or url}]({url})" if url else f"{n}. Source {n}")
+        lines.append(f"   {excerpt}")
+        lines.append("")
+        if len(seen) >= limit:
+            break
+    return "\n".join(lines).rstrip()
+
 
 async def deep_research(query: str, iteration_limit: int = 3) -> dict[str, Any]:
     """
@@ -557,19 +483,10 @@ async def deep_research(query: str, iteration_limit: int = 3) -> dict[str, Any]:
     # Generate final report
     try:
         final_report = await generate_final_report(query, aggregated_contexts)
-    except Exception as e:
+    except Exception:
         logger.exception("Error in final report generation")
-        final_report = f"Unable to generate a comprehensive report on '{query}' due to an error: {e!s}"
-        
-        # Try a simpler approach if complex report generation fails
-        if aggregated_contexts:
-            try:
-                final_report = f"Research findings on: {query}\n\n"
-                for i, context in enumerate(aggregated_contexts):
-                    final_report += f"Finding {i+1}:\n{context}\n\n"
-            except Exception:
-                logger.exception("Error in fallback report generation")
-    
+        final_report = sources_fallback_report(query, aggregated_contexts)
+
     return {
         "report": final_report,
         "contexts": aggregated_contexts,
