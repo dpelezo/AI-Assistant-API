@@ -89,6 +89,7 @@ Settings are read from environment variables or `.env`. See [`.env.example`](.en
 | `EXA_API_KEY` | (none) | Web search |
 | `LLM_MODEL` | `claude-haiku-5-5` | Claude model ID |
 | `LLM_TEMPERATURE` | unset | Leave unset. Current Claude models (Haiku 5.5, Sonnet 5.5, Opus 5.5) return a 400 error for any value other than 1. |
+| `LLM_MAX_TOKENS` | `4096` | Maximum tokens per reply. Adaptive thinking counts toward this limit. |
 | `BACKEND_CORS_ORIGINS` | `["*"]` | Allowed front-end origins; set this to your front-end URL in production |
 | `DEBUG` | `false` | Turns on the `/debug` routes and debug logging |
 | `DEFAULT_RESEARCH_ITERATIONS` / `MAX_RESEARCH_ITERATIONS` | `3` / `5` | Deep research limits |

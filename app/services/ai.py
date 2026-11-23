@@ -1,4 +1,6 @@
 # app/services/ai.py
+from typing import Any
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage
 from langsmith import traceable
@@ -18,12 +20,33 @@ def get_model():
     return ChatAnthropic(
         model=settings.LLM_MODEL,
         temperature=settings.LLM_TEMPERATURE,
+        max_tokens=settings.LLM_MAX_TOKENS,
         api_key=settings.ANTHROPIC_API_KEY,
         # Remove the system_prompt from here
     ).bind_tools(
         [retrieve_web_content],
         tool_choice="auto"
     )
+
+def message_text(content: Any) -> str:
+    """Return the plain text of a model reply.
+
+    Current Claude models think adaptively, so a reply can be a list of
+    content blocks (thinking, text, tool_use) instead of a string. Only the
+    text blocks are shown to users.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        return "\n\n".join(p for p in parts if p.strip())
+    return "" if content is None else str(content)
+
 
 def get_system_message():
     """Get a standard system message to encourage tool use."""

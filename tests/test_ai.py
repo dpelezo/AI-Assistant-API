@@ -25,3 +25,19 @@ def test_no_temperature_sent_by_default(monkeypatch):
 def test_temperature_sent_only_when_configured(monkeypatch):
     payload = request_payload(monkeypatch, LLM_TEMPERATURE=1.0)
     assert payload["temperature"] == 1.0
+
+
+def test_max_tokens_leaves_room_for_thinking(monkeypatch):
+    assert request_payload(monkeypatch)["max_tokens"] == settings.LLM_MAX_TOKENS == 4096
+
+
+def test_message_text_handles_strings_and_content_blocks():
+    blocks = [
+        {"type": "thinking", "thinking": "hidden reasoning", "signature": "sig"},
+        {"type": "text", "text": "First part."},
+        {"type": "tool_use", "id": "t1", "name": "retrieve_web_content", "input": {}},
+        {"type": "text", "text": "Second part."},
+    ]
+    assert ai.message_text("plain") == "plain"
+    assert ai.message_text(blocks) == "First part.\n\nSecond part."
+    assert ai.message_text(None) == ""
